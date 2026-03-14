@@ -1,0 +1,19 @@
+# ---- PostgreSQL Service (ClusterIP — internal only) ----
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: jerney-db
+  namespace: jerney
+  labels:
+    app.kubernetes.io/name: jerney-db
+    app.kubernetes.io/part-of: jerney
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: jerney-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
