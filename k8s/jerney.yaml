@@ -89,25 +89,35 @@ spec:
         app.kubernetes.io/part-of: jerney
         app.kubernetes.io/component: database
     spec:
-      # Security: don't automount service account token (DB doesn't need K8s API)
       automountServiceAccountToken: false
+
+      # Pod security profile
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
       tolerations:
         - key: "karpenter.sh/disrupted"
           operator: "Exists"
           effect: "NoSchedule"
+
       containers:
         - name: postgres
           image: postgres:16-alpine
+          imagePullPolicy: Always
           ports:
             - containerPort: 5432
               protocol: TCP
+
           envFrom:
             - secretRef:
                 name: jerney-db-secret
+
           volumeMounts:
             - name: db-storage
               mountPath: /var/lib/postgresql/data
               subPath: pgdata
+
           resources:
             requests:
               cpu: 250m
@@ -115,23 +125,31 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+
           # Security context
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false # Postgres needs write access
-            runAsNonRoot: false            # Postgres image runs initdb as root then drops
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop:
+                - ALL
+
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "jerney_user", "-d", "jerney_db"]
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 5
+
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "jerney_user", "-d", "jerney_db"]
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
+
       volumes:
         - name: db-storage
           persistentVolumeClaim:
@@ -181,10 +199,16 @@ spec:
         app.kubernetes.io/component: backend
     spec:
       automountServiceAccountToken: false
+
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
       tolerations:
         - key: "karpenter.sh/disrupted"
           operator: "Exists"
           effect: "NoSchedule"
+
       initContainers:
         - name: wait-for-db
           image: busybox:1.36
@@ -198,12 +222,20 @@ spec:
                 sleep 3
               done
               echo "DB is ready!"
+
       containers:
         - name: backend
+<<<<<<< HEAD
           image: ghcr.io/Divue/bla_bla_jerney/jerney-backend:3372cb4
+=======
+          image: ghcr.io/Divue/bla_bla_jerney/jerney-backend:fbd29f8
+          imagePullPolicy: Always
+
+>>>>>>> b1993c5 (tried fixing the pipeline)
           ports:
             - containerPort: 5000
               protocol: TCP
+
           env:
             - name: PORT
               value: "5000"
@@ -226,6 +258,7 @@ spec:
                 secretKeyRef:
                   name: jerney-db-secret
                   key: POSTGRES_DB
+
           resources:
             requests:
               cpu: 100m
@@ -233,6 +266,7 @@ spec:
             limits:
               cpu: 300m
               memory: 256Mi
+
           # Security context
           securityContext:
             allowPrivilegeEscalation: false
@@ -242,6 +276,7 @@ spec:
             capabilities:
               drop:
                 - ALL
+
           livenessProbe:
             httpGet:
               path: /api/health
@@ -301,13 +336,21 @@ spec:
         app.kubernetes.io/component: frontend
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       tolerations:
         - key: "karpenter.sh/disrupted"
           operator: "Exists"
           effect: "NoSchedule"
       containers:
         - name: frontend
+<<<<<<< HEAD
           image: ghcr.io/Divue/bla_bla_jerney/jerney-frontend:3372cb4
+=======
+          image: ghcr.io/Divue/bla_bla_jerney/jerney-frontend:fbd29f8
+          imagePullPolicy: Always
+>>>>>>> b1993c5 (tried fixing the pipeline)
           ports:
             - containerPort: 8080
               protocol: TCP
@@ -322,7 +365,7 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false # Nginx needs write for cache/pid
             runAsNonRoot: true
-            runAsUser: 101 # nginx user UID in alpine
+            runAsUser: 101
             capabilities:
               drop:
                 - ALL
@@ -405,4 +448,3 @@ spec:
       ports:
         - port: 5000
           protocol: TCP
-          

@@ -1,5 +1,9 @@
 # ---- Build stage ----
 FROM node:20-alpine AS build
+
+# Patch OS vulnerabilities
+RUN apk update && apk upgrade --no-cache
+
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci && npm cache clean --force

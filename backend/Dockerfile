@@ -10,6 +10,8 @@ RUN npm ci --only=production && npm cache clean --force
 # ---- Production stage ----
 FROM node:20-alpine AS production
 
+RUN apk update && apk upgrade --no-cache
+
 # Security: run as non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
