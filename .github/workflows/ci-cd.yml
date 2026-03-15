@@ -211,54 +211,57 @@ jobs:
           dockerfile: ${{ matrix.component }}/Dockerfile
           failure-threshold: warning
 
-  # ==============================================================
-  # STAGE 7: Update K8s Manifest with New Image Tag
-  # Only runs on push to main (not on PRs)
-  # ==============================================================
+ # ==============================================================
+# STAGE 7: Update K8s Manifest with New Image Tag
+# Only runs on push to main (not on PRs)
+# ==============================================================
+
   update-manifest:
     name: "🚀 Update K8s Manifest"
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     permissions:
       contents: write
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get short SHA
-        id: sha
-        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Update K8s manifest with new image tags
-        run: |
-          IMAGE_TAG=${{ steps.sha.outputs.short }}
-
-          BACKEND_LINE=$(awk '/- name: backend/{found=1} found && /image:/{print NR; exit}' k8s/jerney.yaml)
-          echo "Backend image at line: ${BACKEND_LINE}"
-          sed -i "${BACKEND_LINE}s|.*|          image: ${BACKEND_IMAGE}:${IMAGE_TAG}|" k8s/jerney.yaml
-
-          FRONTEND_LINE=$(awk '/- name: frontend/{found=1} found && /image:/{print NR; exit}' k8s/jerney.yaml)
-          echo "Frontend image at line: ${FRONTEND_LINE}"
-          sed -i "${FRONTEND_LINE}s|.*|          image: ${FRONTEND_IMAGE}:${IMAGE_TAG}|" k8s/jerney.yaml
-
-          echo "✅ Updated images to tag: ${IMAGE_TAG}"
-          grep -n "image:" k8s/jerney.yaml
-
-      - name: Commit and push manifest update
+        
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Sync with remote first
+        
+      # Pull latest repository state FIRST
+      - name: Sync repository
+        run: |
           git pull --rebase origin ${{ github.ref_name }}
-
-          # Stage manifest changes
+        
+      - name: Get short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        
+      - name: Update K8s manifest with new image tags
+        run: |
+          IMAGE_TAG=${{ steps.sha.outputs.short }}
+        
+          BACKEND_LINE=$(awk '/- name: backend/{found=1} found && /image:/{print NR; exit}' k8s/jerney.yaml)
+          echo "Backend image at line: ${BACKEND_LINE}"
+          sed -i "${BACKEND_LINE}s|.*|          image: ${BACKEND_IMAGE}:${IMAGE_TAG}|" k8s/jerney.yaml
+        
+          FRONTEND_LINE=$(awk '/- name: frontend/{found=1} found && /image:/{print NR; exit}' k8s/jerney.yaml)
+          echo "Frontend image at line: ${FRONTEND_LINE}"
+          sed -i "${FRONTEND_LINE}s|.*|          image: ${FRONTEND_IMAGE}:${IMAGE_TAG}|" k8s/jerney.yaml
+        
+          echo "Updated images to tag: ${IMAGE_TAG}"
+          grep -n "image:" k8s/jerney.yaml
+        
+      - name: Commit and push manifest update
+        run: |
           git add k8s/jerney.yaml
-
-          # Commit only if something changed
+        
           git diff --cached --quiet || git commit -m "ci: update k8s images to ${{ steps.sha.outputs.short }} [skip ci]"
-
-          # Push update
-          git push
+        
+          git push origin ${{ github.ref_name }}
