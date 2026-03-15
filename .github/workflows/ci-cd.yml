@@ -116,7 +116,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}/jerney-${{ matrix.component }}
           tags: |
-            type=sha,prefix=
+            type=sha
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -149,14 +149,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build image for scanning
-        run: |
-          docker build -t jerney-${{ matrix.component }}:scan ./${{ matrix.component }}
-
+      # Scan the pushed image instead of rebuilding it
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "jerney-${{ matrix.component }}:scan"
+          image-ref: ghcr.io/${{ github.repository }}/jerney-${{ matrix.component }}:${{ github.sha }}
           format: "table"
           exit-code: "1"
           ignore-unfixed: true
@@ -181,6 +178,7 @@ jobs:
         with:
           directory: terraform/
           framework: terraform
+          download_external_modules: true
           soft_fail: false
           skip_check: CKV_AWS_39,CKV_AWS_58  # Public EKS endpoint (intentional for dev)
           output_format: cli
@@ -190,7 +188,7 @@ jobs:
         with:
           directory: k8s/
           framework: kubernetes
-          soft_fail: true  # Soft fail for K8s (some checks may not apply)
+          soft_fail: true
           output_format: cli
 
   # ==============================================================
@@ -220,9 +218,9 @@ jobs:
   update-manifest:
     name: "🚀 Update K8s Manifest"
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' 
+    if: github.event_name == 'push'
     permissions:
-      contents: write # Needed to push manifest changes
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -237,14 +235,10 @@ jobs:
         run: |
           IMAGE_TAG=${{ steps.sha.outputs.short }}
 
-          # Find the line number of the backend container image
-          # (the image: line right after `- name: backend`)
           BACKEND_LINE=$(awk '/- name: backend/{found=1} found && /image:/{print NR; exit}' k8s/jerney.yaml)
           echo "Backend image at line: ${BACKEND_LINE}"
           sed -i "${BACKEND_LINE}s|.*|          image: ${BACKEND_IMAGE}:${IMAGE_TAG}|" k8s/jerney.yaml
 
-          # Find the line number of the frontend container image
-          # (the image: line right after `- name: frontend`)
           FRONTEND_LINE=$(awk '/- name: frontend/{found=1} found && /image:/{print NR; exit}' k8s/jerney.yaml)
           echo "Frontend image at line: ${FRONTEND_LINE}"
           sed -i "${FRONTEND_LINE}s|.*|          image: ${FRONTEND_IMAGE}:${IMAGE_TAG}|" k8s/jerney.yaml
@@ -256,6 +250,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git pull --rebase
           git add k8s/jerney.yaml
           git diff --cached --quiet || git commit -m "ci: update k8s images to ${{ steps.sha.outputs.short }} [skip ci]"
           git push
