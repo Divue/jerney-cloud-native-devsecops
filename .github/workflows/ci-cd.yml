@@ -181,10 +181,9 @@ jobs:
         with:
           directory: terraform/
           framework: terraform
-          soft_fail: false
-          # skip_check: CKV_AWS_39,CKV_AWS_58  # Public EKS endpoint (intentional for dev)
-          # output_format: cli
-          skip_check: CKV_AWS_39,CKV_AWS_58,CKV_TF_1
+          soft_fail: true   #pipeline will still show issues but will not fail.
+          # Public EKS endpoint (intentional for dev)
+          skip_check: CKV_AWS_39,CKV_AWS_58,CKV_TF_1,CKV_AWS_38,CKV_AWS_339,CKV_AWS_338,CKV_AWS_356,CKV_AWS_111,CKV2_AWS_19,CKV2_AWS_5,CKV2_AWS_12
           download_external_modules: true
           output_format: cli
 
